@@ -1,4 +1,6 @@
-﻿using System;
+﻿//
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -12,6 +14,7 @@ namespace RepairDataFile
             List<messageSet> dataset;
             if (args.Length > 0 && File.Exists(args[0]))
             {
+
                 int result = RepairFile.modulusCheck(args[0]);
                 if (result == 0)
                 {
@@ -34,7 +37,23 @@ namespace RepairDataFile
 
                     RepairFile.repair(args[0]);
                 }
+            }else if (args.Length > 0 && args[0] == "r")
+            {
+                string fPath = args[1];
+                RepairFile.findRollovers(fPath,args[2]);
             }
+            else if (args.Length > 0 && args[0] == "h")
+            {
+                Console.WriteLine("To run a data repair :> RepairDataFile.exe [full output path and file name (Valid .dat file)]");
+                Console.WriteLine(@"Example :> RepairDataFile.exe C:\output\5871\5871.dat");
+                Console.WriteLine(" ");
+                Console.WriteLine("To check a csv file for rollover values :> RepairDataFile.exe r [input csv file] [output csv path and filename]");
+                Console.WriteLine(@"Example :> RepairDataFile.exe r C:\output\5871\5871.csv C:\output\5871\Correted_5871.csv ");
+                Console.WriteLine("properly formatted csv file will have been made by the CanFrame.exe");
+            }
+
+                
+
             Console.WriteLine("Press any key to exit");
             Console.ReadLine();
         }
@@ -44,8 +63,6 @@ namespace RepairDataFile
     public static class RepairFile
     {
         
-
-
         /// <summary>
         /// Finds the file size in bytes then runs a mod 14 to see if the file is the right size.
         /// also checks to see if all messages are intact.
@@ -53,7 +70,7 @@ namespace RepairDataFile
         /// <param name="sFileName"></param>
         public static int modulusCheck(string sFileName)
         {
-            
+            LogActivity log = new LogActivity();
 
             FileStream fs = new FileStream(sFileName, FileMode.Open, FileAccess.Read);
             BinaryReader reader = new BinaryReader(fs);
@@ -77,20 +94,109 @@ namespace RepairDataFile
             }
 
             Console.WriteLine("Running check on file " + sFileName);
+            log.writeLog("---------   RepairFile  ---------");
+            log.writeLog("---------------------------------");
+        
+            log.writeLog(DateTime.Now.ToString());
+            
+            log.writeLog("Running check on file " + sFileName);
+            
+
             Console.WriteLine(fSize.ToString() + " bytes");
+            log.writeLog(fSize.ToString() + " bytes");
+            
+
             Console.WriteLine(chk.ToString() + " modulus check");
             Console.WriteLine(allMessagesPresent.ToString() + " Message integrity check");
+
+            log.writeLog("Modulus check: " + chk.ToString() + "  Message integrity check: " + allMessagesPresent.ToString());
+            
+
+            log.writeLog("---------------------------------");
+            
+            log.writeLog("---------   RepairFile  ---------");
+            
+            log.writeLog(" ");
+            log.writeLogData("log.txt");
 
             reader.Close();
             fs.Close();
             return 0;
         }
 
+
+        public static long findRollovers(string csvFile, string outputPath)
+        {
+            if (File.Exists(csvFile))
+            {
+                LogActivity log = new LogActivity();
+
+                long cnt = 0;
+                string[] csvOriginal = File.ReadAllLines(csvFile);
+
+                List<string> newFile = new List<string>();
+                newFile.Add(csvOriginal[0]);
+
+                for (long i = 1; i < csvOriginal.Length; i++)
+                {
+                    string[] temp = csvOriginal[i].Split(',');
+
+                    string newLine = temp[0] + ",";
+
+                    for (int j = 1; j < temp.Length - 1; j++)
+                    {
+                        int vall = Convert.ToInt32(temp[j]);
+                        if (vall > 65000)
+                        {
+                            
+                            cnt++;
+                            newLine = newLine + "0,";
+                        }else
+                        {
+                            newLine = newLine + temp[j] + ",";
+                        }
+                    }
+
+                    newFile.Add(newLine);
+
+                }
+
+                File.WriteAllLines(outputPath, newFile);
+                
+
+                log.writeLog("---------   RepairFile  ---------");
+
+                log.writeLog("---------------------------------");
+
+                log.writeLog(DateTime.Now.ToString());
+
+                log.writeLog("Running rollover check on file " + csvFile);
+
+                log.writeLog("Found " + cnt.ToString() + " instances of rollover.");
+                log.writeLog("Wrote corrected file to " + outputPath);
+                log.writeLog("---------------------------------");
+
+                log.writeLog("---------   RepairFile  ---------");
+                log.writeLog(" ");
+                log.writeLogData("log.txt");
+                return newFile.Count;
+            }
+            
+
+
+            return 0;
+        }
+
+        /// <summary>
+        /// This method is only capable of repairing files that have inconsistancies at the end of the file.
+        /// </summary>
+        /// <param name="sFileName"></param>
         public static void repair(string sFileName)
         {
+            LogActivity log = new LogActivity();
             FileStream fs = new FileStream(sFileName, FileMode.Open, FileAccess.Read);
             BinaryReader reader = new BinaryReader(fs);
-
+            long originalLength = fs.Length;
             long bytesToremove = fs.Length % (14 * 11);
 
             Console.WriteLine("File Name: " + sFileName);
@@ -133,12 +239,33 @@ namespace RepairDataFile
             }
 
 
-
-
             reader.Close();
             fs.Close();
 
             writeNewRepairedFile(msgList, sFileName);
+
+            log.writeLog( "---------   RepairFile  ---------");
+            log.writeLog( "---------------------------------");
+         
+            log.writeLog("Initiated repair of file " + sFileName + " on " + DateTime.Now.ToString());
+            log.writeLog( "Original file size: " + originalLength.ToString() + " bytes");
+        
+            log.writeLog( "Bytes to remove: " + bytesToremove.ToString() + " bytes");
+           
+            log.writeLog( "New file size: " + newLoops.ToString() + " bytes");
+           
+            log.writeLog( "New message set count: " + (newLoops / 14).ToString());
+           
+
+
+
+            log.writeLog( "---------------------------------");
+           
+            log.writeLog( "---------   RepairFile  ---------");
+           
+            log.writeLog( " ");
+            log.writeLogData("log.txt");
+           
         }
 
 
@@ -258,6 +385,12 @@ namespace RepairDataFile
     }
 
 
+
+
+
+
+
+
     public class message
     {
         // Arrays to hold all the message data
@@ -273,7 +406,7 @@ namespace RepairDataFile
         public byte m_f7 = 0;
         public message()
         {
-
+            
         }
         public void setMessageTime(UInt32 newTime)
         {
@@ -321,13 +454,7 @@ namespace RepairDataFile
 
     public class messageSet
     {
-        public enum testResults
-        {
-            nottested,
-            pass,
-            badByteCheck,
-            badMessageCheck
-        }
+        
         public message[] m_set;
 
         public int[] msgIDs;
@@ -409,10 +536,10 @@ namespace RepairDataFile
                     currindex = 10;
                 }else
                 {
-                    currindex = 100;
+                    currindex = 808;
                 }
 
-            if (currindex == 100)
+            if (currindex == 808)
             {
                 for (int i = 0; i < 11; i++)
                 {
@@ -449,5 +576,39 @@ namespace RepairDataFile
 
         }
 
+    }
+
+    public class LogActivity
+    {
+        List<string> logdata = new List<string>();
+        bool bufferEmpty = true;
+        public void writeLog(string logMessage)
+        {
+            logdata.Add(logMessage);
+            bufferEmpty = false;
+        }
+
+
+        public bool writeLogData(string sFileName)
+        {
+
+            if (!bufferEmpty)
+            {
+                if (File.Exists(sFileName))
+                {
+                    File.AppendAllLines(sFileName, logdata);
+                }else
+                {
+                    File.WriteAllLines(sFileName, logdata);
+                }
+                logdata.Clear();
+                bufferEmpty = true;
+                return true;
+            }else
+            {
+                return false;
+            }
+            
+        }
     }
 }
